@@ -1,0 +1,52 @@
+name: BIS Portal Bot
+
+on:
+  schedule:
+    # من 6 الصبح لـ 10 بالليل بتوقيت غزة (الأوقات هون UTC):
+    # عالساعة فحص كامل، وعالنص ساعة فحص سريع للأقسام المهمة
+    - cron: "7 4-20 * * *"
+    - cron: "37 4-19 * * *"
+  workflow_dispatch: # زر "Run workflow" للتشغيل اليدوي
+    inputs:
+      quick:
+        description: "فحص سريع (الأقسام المهمة بس)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: bis-watch
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: تجهيز
+        run: |
+          pip install -r requirements.txt
+          # بنستعمل كروم المثبّت على السيرفر؛ بس لو مش موجود بننزّل متصفح
+          if ! command -v google-chrome >/dev/null; then python -m playwright install --with-deps chromium; fi
+
+      - name: فحص البوابة
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+          QUICK: ${{ (github.event.schedule == '37 4-19 * * *' || inputs.quick) && '1' || '' }}
+        run: python monitor.py
+
+      - name: حفظ آخر نسخة
+        if: always()
+        run: |
+          git config user.name "bis-watch"
+          git config user.email "bis-watch@users.noreply.github.com"
+          git add -A state
+          git diff --cached --quiet || (git commit -q -m "تحديث" && git push -q)
