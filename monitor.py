@@ -482,10 +482,10 @@ def main():
     STATE.mkdir(exist_ok=True)
     data = load_data()
     migrate_v1(data)
-    if not DRY and not data.get("bot_user"):
-        me = tg("getMe")
-        if me.get("ok"):
-            data["bot_user"] = me["result"]["username"]
+    me = {} if DRY else tg("getMe")
+    log("telegram", "ok" if me.get("ok") else "TOKEN_INVALID")
+    if me.get("ok"):
+        data["bot_user"] = me["result"]["username"]
 
     with sync_playwright() as p:
         try:
